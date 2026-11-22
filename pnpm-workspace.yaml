@@ -1,0 +1,14 @@
+packages:
+  - "apps/api"
+  - "apps/web"
+  - "apps/desktop"
+  - "apps/desktop/zalo-inject"
+  - "packages/*"
+
+onlyBuiltDependencies:
+  - prisma
+  - "@prisma/client"
+  - "@prisma/engines"
+  - esbuild
+  - "@nestjs/core"
+  - "@tailwindcss/oxide"

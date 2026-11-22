@@ -1,0 +1,17 @@
+{
+  "extends": "@zalocare/config/tsconfig/base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": "./",
+    "declaration": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+    "isolatedModules": false,
+    "strictPropertyInitialization": false
+  },
+  "include": ["src"]
+}

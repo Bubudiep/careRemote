@@ -1,0 +1,323 @@
+// Mô hình dữ liệu ZaloCare — xem docs/DATA_MODEL.md
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  owner
+  admin
+  agent
+  viewer
+}
+
+enum ConversationStatus {
+  open
+  pending
+  closed
+}
+
+enum MessageDirection {
+  in
+  out
+}
+
+enum MessageStatus {
+  queued
+  dispatched
+  sent
+  failed
+  expired
+  received
+  recalled
+}
+
+enum HostCommandStatus {
+  queued
+  dispatched
+  done
+  failed
+  expired
+}
+
+enum CustomerStage {
+  new
+  contacted
+  qualified
+  won
+  lost
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  avatarUrl    String?  @map("avatar_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships   WorkspaceMember[]
+  refreshTokens RefreshToken[]
+  assignments   Assignment[]      @relation("assignee")
+  notes         Note[]
+  sentMessages  Message[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  userAgent String?   @map("user_agent")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Workspace {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members       WorkspaceMember[]
+  zaloAccount   ZaloAccount?
+  hostDevices   HostDevice[]
+  hostCommands  HostCommand[]
+  customers     Customer[]
+  conversations Conversation[]
+  messages      Message[]
+  tags          Tag[]
+  notes         Note[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  workspaceId String   @map("workspace_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  role        Role     @default(agent)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+/// 1 workspace = 1 tài khoản Zalo = 1 host đang hoạt động
+model ZaloAccount {
+  id                 String    @id @default(uuid()) @db.Uuid
+  workspaceId        String    @unique @map("workspace_id") @db.Uuid
+  zaloUid            String    @map("zalo_uid")
+  displayName        String    @map("display_name")
+  avatarUrl          String?   @map("avatar_url")
+  activeHostDeviceId String?   @map("active_host_device_id") @db.Uuid
+  hostLeaseUntil     DateTime? @map("host_lease_until")
+  hostLastSeenAt     DateTime? @map("host_last_seen_at")
+  zaloState          String?   @map("zalo_state")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@map("zalo_accounts")
+}
+
+model HostDevice {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  deviceId    String    @map("device_id")
+  name        String
+  tokenHash   String    @unique @map("token_hash")
+  createdById String    @map("created_by") @db.Uuid
+  lastSeenAt  DateTime? @map("last_seen_at")
+  lastSeq     Int       @default(0) @map("last_seq")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, deviceId])
+  @@map("host_devices")
+}
+
+model HostCommand {
+  id          String            @id @default(uuid()) @db.Uuid
+  workspaceId String            @map("workspace_id") @db.Uuid
+  type        String
+  payload     Json
+  status      HostCommandStatus @default(queued)
+  requestedBy String?           @map("requested_by") @db.Uuid
+  messageId   String?           @unique @map("message_id") @db.Uuid
+  attempts    Int               @default(0)
+  error       String?
+  expiresAt   DateTime          @map("expires_at")
+  dispatchedAt DateTime?        @map("dispatched_at")
+  doneAt      DateTime?         @map("done_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  message   Message?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status, createdAt])
+  @@map("host_commands")
+}
+
+model Customer {
+  id                String        @id @default(uuid()) @db.Uuid
+  workspaceId       String        @map("workspace_id") @db.Uuid
+  fullName          String        @map("full_name")
+  phone             String?
+  email             String?
+  zaloUid           String?       @map("zalo_uid")
+  avatarUrl         String?       @map("avatar_url")
+  stage             CustomerStage @default(new)
+  ownerUserId       String?       @map("owner_user_id") @db.Uuid
+  customFields      Json          @default("{}") @map("custom_fields")
+  lastInteractionAt DateTime?     @map("last_interaction_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  deletedAt         DateTime?     @map("deleted_at")
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  tags          CustomerTag[]
+  notes         Note[]
+
+  @@unique([workspaceId, zaloUid])
+  @@index([workspaceId, phone])
+  @@index([workspaceId, lastInteractionAt(sort: Desc)])
+  @@map("customers")
+}
+
+model Conversation {
+  id                 String             @id @default(uuid()) @db.Uuid
+  workspaceId        String             @map("workspace_id") @db.Uuid
+  zaloAccountId      String             @map("zalo_account_id") @db.Uuid
+  zaloThreadId       String             @map("zalo_thread_id")
+  kind               String             @default("user")
+  customerId         String?            @map("customer_id") @db.Uuid
+  title              String
+  avatarUrl          String?            @map("avatar_url")
+  status             ConversationStatus @default(open)
+  unreadCount        Int                @default(0) @map("unread_count")
+  lastMessageAt      DateTime?          @map("last_message_at")
+  lastMessagePreview String?            @map("last_message_preview")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  zaloAccount ZaloAccount  @relation(fields: [zaloAccountId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  messages    Message[]
+  assignments Assignment[]
+
+  @@unique([zaloAccountId, zaloThreadId])
+  @@index([workspaceId, status, lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model Message {
+  id             String           @id @default(uuid()) @db.Uuid
+  workspaceId    String           @map("workspace_id") @db.Uuid
+  conversationId String           @map("conversation_id") @db.Uuid
+  zaloMsgId      String?          @map("zalo_msg_id")
+  clientMsgId    String?          @map("client_msg_id")
+  direction      MessageDirection
+  senderUid      String?          @map("sender_uid")
+  senderName     String?          @map("sender_name")
+  kind           String           @default("text")
+  text           String?
+  attachments    Json?
+  sentAt         DateTime         @map("sent_at")
+  status         MessageStatus
+  error          String?
+  sentByUserId   String?          @map("sent_by_user_id") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sentBy       User?        @relation(fields: [sentByUserId], references: [id], onDelete: SetNull)
+  hostCommand  HostCommand?
+
+  @@unique([conversationId, zaloMsgId])
+  @@unique([conversationId, clientMsgId])
+  @@index([conversationId, sentAt(sort: Desc)])
+  @@map("messages")
+}
+
+model Tag {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  name        String
+  color       String   @default("#3b82f6")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  customers CustomerTag[]
+
+  @@unique([workspaceId, name])
+  @@map("tags")
+}
+
+model CustomerTag {
+  customerId String @map("customer_id") @db.Uuid
+  tagId      String @map("tag_id") @db.Uuid
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, tagId])
+  @@map("customer_tags")
+}
+
+model Assignment {
+  id             String    @id @default(uuid()) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  assignedById   String    @map("assigned_by") @db.Uuid
+  assignedAt     DateTime  @default(now()) @map("assigned_at")
+  unassignedAt   DateTime? @map("unassigned_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation("assignee", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, unassignedAt])
+  @@index([userId, unassignedAt])
+  @@map("assignments")
+}
+
+model Note {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  customerId  String   @map("customer_id") @db.Uuid
+  authorId    String   @map("author_id") @db.Uuid
+  body        String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt(sort: Desc)])
+  @@map("notes")
+}

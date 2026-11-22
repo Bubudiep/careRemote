@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "id": "01JDZ8K3Q4V7H2M6N9P0R1S2T6",
+  "ts": "2026-11-22T08:16:05.000Z",
+  "type": "inject.heartbeat",
+  "payload": { "selectorVersion": "0.1.0", "driftMs": 12, "visible": false }
+}

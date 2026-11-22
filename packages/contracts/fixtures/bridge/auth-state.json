@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "id": "01JDZ8K3Q4V7H2M6N9P0R1S2T4",
+  "ts": "2026-11-22T08:00:00.000Z",
+  "type": "auth.state",
+  "payload": { "state": "logged_in", "profile": { "zaloUid": "z_1001", "name": "Shop ABC" } }
+}

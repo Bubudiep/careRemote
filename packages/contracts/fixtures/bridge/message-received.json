@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "id": "01JDZ8K3Q4V7H2M6N9P0R1S2T3",
+  "ts": "2026-11-22T08:15:00.000Z",
+  "type": "message.received",
+  "payload": {
+    "message": {
+      "zaloMsgId": "m_123456",
+      "threadId": "u_987654",
+      "direction": "in",
+      "senderUid": "u_987654",
+      "senderName": "Nguyễn Văn A",
+      "sentAt": "2026-11-22T08:14:59.000Z",
+      "kind": "text",
+      "text": "Shop ơi còn hàng không?"
+    }
+  }
+}

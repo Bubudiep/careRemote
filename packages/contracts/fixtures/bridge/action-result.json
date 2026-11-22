@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "id": "01JDZ8K3Q4V7H2M6N9P0R1S2T5",
+  "ts": "2026-11-22T08:16:00.000Z",
+  "type": "action.result",
+  "payload": { "commandId": "cmd_1", "ok": true, "zaloMsgId": "m_123457" }
+}

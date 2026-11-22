@@ -1,0 +1,13 @@
+{
+  "name": "zalocare",
+  "private": true,
+  "packageManager": "pnpm@12.18.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --filter @zalocare/contracts build && pnpm --parallel --filter api --filter web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "desktop": "pnpm --filter desktop tauri dev"
+  }
+}
